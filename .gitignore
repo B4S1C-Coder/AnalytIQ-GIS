@@ -23,6 +23,10 @@
 # misc
 .DS_Store
 *.pem
+*.gguf
+**/models/*/**/config.json
+**/build/
+*.imatrix
 
 # debug
 npm-debug.log*
