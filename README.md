@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" width="250" alt="AnalytIQ Temporary Logo" />
+  <img src="logo.svg" width="250" alt="AnalytIQ Temporary Logo" />
 </p>
 
 <h1 align="center">AnalytIQ GIS</h1>
