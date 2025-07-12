@@ -27,6 +27,11 @@
 **/models/*/**/config.json
 **/build/
 *.imatrix
+**/_pycache/*
+__pycache__/
+**/__pycache__/
+*.py[cod]
+whisper_test/generated_audio
 
 # debug
 npm-debug.log*
