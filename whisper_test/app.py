@@ -3,17 +3,49 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from faster_whisper import WhisperModel
 from edge_tts import Communicate
+from model_interface import prompts, llms
+from contextlib import asynccontextmanager
 import shutil
 import tempfile
 import asyncio
 import uuid
 import os
+import sys
 
-app = FastAPI()
-model = WhisperModel("base", device="cuda", compute_type="float16")
+model = WhisperModel("base", device="cpu", compute_type="int8")
 
-AUDIO_DIR = "generated_audio"
+AUDIO_DIR = "whisper_test/generated_audio"
 os.makedirs(AUDIO_DIR, exist_ok=True)
+
+prompt_maker = prompts.Prompt()
+
+llm = llms.Llama_3p1_8B_Instruct_4BitQuantized()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Waiting for LLM to be loaded on the GPU ...")
+    status = llm.load()
+
+    # timeout = 20
+
+    # while (llm.get_status() != llms.ModelStatus.READY and timeout > 0):
+    #     await asyncio.sleep(1)
+    #     sys.stdout.write("#")
+    #     sys.stdout.flush()
+    #     timeout -= 1
+
+    if status != llms.ModelStatus.READY:
+        print("\nFailed to load model before timeout")
+        llm.unload()
+        raise RuntimeError("Failed to load LLM")
+
+    print("\nLLM loaded on the GPU!")
+    yield # app shall now serve requests
+
+    print("Unloading LLM ...")
+    llm.unload()
+
+app = FastAPI(lifespan=lifespan)
 
 @app.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
@@ -26,8 +58,15 @@ async def transcribe(audio: UploadFile = File(...)):
     segments, _ = model.transcribe(temp_path)
     transcript = " ".join([seg.text for seg in segments])
 
+    prompt = prompt_maker.get_step_gen_conv_prompt(
+        transcript, False, "ConvModel.v1.SystemTestMinor"
+    )
+
+    response = llm.call([prompt])[0]
+    response = prompt_maker.filter_llama_tokens(response)
+
     # Generate TTS
-    tts = Communicate(transcript, "en-US-AriaNeural")
+    tts = Communicate(response, "en-US-AriaNeural")
     stream = tts.stream()
 
     uid = str(uuid.uuid4())
@@ -38,7 +77,7 @@ async def transcribe(audio: UploadFile = File(...)):
                 f.write(chunk["data"])
 
     return {
-        "transcript": transcript,
+        "transcript": response,
         "audio_url": f"/audio/{uid}"
     }
 
@@ -49,5 +88,5 @@ def get_audio(uid: str):
         return FileResponse(file_path, media_type="audio/mpeg")
     return {"error": "File not found"}, 404
 
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory="whisper_test/static", html=True), name="static")
 

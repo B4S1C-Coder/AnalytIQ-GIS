@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from multiprocessing import Process, Pipe
-from multiprocessing.connection import PipeConnection
+from multiprocessing.connection import Connection
 import traceback
-from typing import Any
+from typing import Any, cast
+from llama_cpp import Llama
+import os
 
 class ModelStatus(Enum):
     READY  = 1  # Model is ready for use
@@ -19,7 +21,7 @@ class LargeLanguageModel(ABC):
     def __init__(self):
         self.__status = ModelStatus.UNLOAD
         self.__process: Process | None = None
-        self.__conn: PipeConnection | None = None # IPC Pipe Connection object
+        self.__conn: Connection | None = None # IPC Pipe Connection object
         self.__error: str | None = None
 
     def get_status(self) -> ModelStatus:
@@ -31,7 +33,7 @@ class LargeLanguageModel(ABC):
     def load(self) -> ModelStatus:
         if self.__status in (ModelStatus.LOAD, ModelStatus.READY):
             return self.__status
-
+        
         parent_conn, child_conn = Pipe()
         self.__conn = parent_conn
 
@@ -53,10 +55,10 @@ class LargeLanguageModel(ABC):
 
         return self.__status
 
-    def __run_model_process(self, conn: PipeConnection):
+    def __run_model_process(self, conn: Connection):
         """ Runs in a separate process and handles model logic """
         try:
-            model = self.__load_model()
+            model = self._load_model()
             conn.send(("status", "ready"))
         except Exception:
             conn.send(("status", "error", traceback.format_exc()))
@@ -69,10 +71,14 @@ class LargeLanguageModel(ABC):
                 break
             elif isinstance(msg, dict) and "prompts" in msg:
                 try:
-                    responses = [ model(prompt) for prompt in msg["prompts"] ]
+                    responses = self._handle_model_call(model, msg["prompts"])
                     conn.send(("result", responses))
                 except Exception:
                     conn.send(("error", traceback.format_exc()))
+
+    @abstractmethod
+    def _handle_model_call(self, model: Any, prompts: list[str]) -> list[str]:
+        pass
 
     def unload(self):
         if self.__conn:
@@ -109,7 +115,8 @@ class LargeLanguageModel(ABC):
                 msg = self.__conn.recv()
                 
                 if msg[0] == "result":
-                    self.__status = ModelStatus.EJECT
+                    # For now, NOT USING eject
+                    self.__status = ModelStatus.READY
                     return msg[1]
                 
                 elif msg[0] == "error":
@@ -118,9 +125,30 @@ class LargeLanguageModel(ABC):
                     raise RuntimeError("Model error: " + msg[1])
 
     @abstractmethod
-    def __load_model(self) -> Any:
+    def _load_model(self) -> Any:
         """ Derived classes must implement the loading logic and return the loaded model """
         pass
+
+class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
+    def _load_model(self) -> Llama:
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+        return Llama(
+            model_path=os.path.join(
+                base_dir, "models", "llama-3.1-8b-it-q4-k-m", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
+            ),
+            n_gpu_layers=20, n_ctx=4096, use_mlock=True, use_mmap=True, verbose=True
+        )
+    
+    def _handle_model_call(self, model: Llama, prompts: list[str]) -> list[str]:
+        results: list[str] = []
+
+        for prompt in prompts:
+            response = cast(dict, model(prompt, max_tokens=256, echo=False, stream=False))
+            text = response["choices"][0]["text"].strip()
+            results.append(text)
+
+        return results
 
 # This is a work in progress, and would be worked upon if the need for external APIs becomes necessary
 class LargeLanguageModelAPI(LargeLanguageModel, ABC):
@@ -133,5 +161,8 @@ class LargeLanguageModelAPI(LargeLanguageModel, ABC):
     def call(self, prompts: list[str]) -> list[str]:
         pass
 
-    def __load_model(self) -> Any:
+    def _load_model(self) -> Any:
         return None
+
+    def _handle_model_call(self, model: Any, prompts: list[str]) -> list[str]:
+        return [""]

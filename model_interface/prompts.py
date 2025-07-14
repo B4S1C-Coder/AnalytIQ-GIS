@@ -88,6 +88,11 @@ PROMPT_ROOT_COLLECTIONS: dict[str, str] = {
     "CodeModel.v1.ErrorPrompt":
     """
     This code produces errors. Analyse the errors and give the updated code.
+    """,
+    # ---------------------------------------------------
+    "ConvModel.v1.SystemTestMinor":
+    """
+    You are Llama, a helpful assistant that answers users' queries. Only answer the query once and then stop.
     """
 }
 
@@ -155,3 +160,10 @@ class Prompt:
         """.strip()
 
         return self.__cached_conv_generation
+
+    def filter_llama_tokens(self, response: str) -> str:
+        """ Removes special tokens from the response """
+        response = response.replace("<s>", "")
+        response = response.replace("[INST]", "")
+        response = response.replace("[/INST]", "")
+        return response.strip()
