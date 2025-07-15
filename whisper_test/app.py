@@ -26,14 +26,6 @@ async def lifespan(app: FastAPI):
     print("Waiting for LLM to be loaded on the GPU ...")
     status = llm.load()
 
-    # timeout = 20
-
-    # while (llm.get_status() != llms.ModelStatus.READY and timeout > 0):
-    #     await asyncio.sleep(1)
-    #     sys.stdout.write("#")
-    #     sys.stdout.flush()
-    #     timeout -= 1
-
     if status != llms.ModelStatus.READY:
         print("\nFailed to load model before timeout")
         llm.unload()
@@ -58,9 +50,11 @@ async def transcribe(audio: UploadFile = File(...)):
     segments, _ = model.transcribe(temp_path)
     transcript = " ".join([seg.text for seg in segments])
 
-    prompt = prompt_maker.get_step_gen_conv_prompt(
-        transcript, False, "ConvModel.v1.SystemTestMinor"
-    )
+    # prompt = prompt_maker.get_step_gen_conv_prompt(
+    #     transcript, False, "ConvModel.v1.SystemTestMinor"
+    # )
+
+    prompt = prompt_maker.get_cot_conv_prompt(transcript, False)
 
     response = llm.call([prompt])[0]
     response = prompt_maker.filter_llama_tokens(response)

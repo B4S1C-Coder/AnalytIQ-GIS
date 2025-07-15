@@ -30,7 +30,7 @@ class LargeLanguageModel(ABC):
     def get_error(self) -> str | None:
         return self.__error
 
-    def load(self) -> ModelStatus:
+    def load(self, timeout=30) -> ModelStatus:
         if self.__status in (ModelStatus.LOAD, ModelStatus.READY):
             return self.__status
         
@@ -41,7 +41,7 @@ class LargeLanguageModel(ABC):
         self.__process = Process(target=self.__run_model_process, args=(child_conn,))
         self.__process.start()
 
-        if parent_conn.poll(timeout=10):
+        if parent_conn.poll(timeout=timeout):
             msg = parent_conn.recv()
 
             if msg[0] == "status" and msg[1] == "ready":
@@ -144,7 +144,10 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
         results: list[str] = []
 
         for prompt in prompts:
-            response = cast(dict, model(prompt, max_tokens=256, echo=False, stream=False))
+            response = cast(dict, model(
+                prompt, max_tokens=256, echo=False, stream=False, temperature=0.7, top_k=50, top_p=0.9,
+                repeat_penalty=1.1, stop=["</s>", "[/INST]", "User:", "Query:"]
+            ))
             text = response["choices"][0]["text"].strip()
             results.append(text)
 
