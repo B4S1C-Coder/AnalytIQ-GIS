@@ -56,7 +56,7 @@ async def transcribe(audio: UploadFile = File(...)):
 
     prompt = prompt_maker.get_cot_conv_prompt(transcript, False)
 
-    response = llm.call([prompt])[0]
+    response = llm.call([prompt], reflection=True)[0]
     response = prompt_maker.filter_llama_tokens(response)
 
     # Generate TTS

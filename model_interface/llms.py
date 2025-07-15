@@ -71,13 +71,15 @@ class LargeLanguageModel(ABC):
                 break
             elif isinstance(msg, dict) and "prompts" in msg:
                 try:
-                    responses = self._handle_model_call(model, msg["prompts"])
+                    msg_prompts = msg["prompts"]
+                    kwargs = { k:v for k,v in msg.items() if k != "prompts" }
+                    responses = self._handle_model_call(model, msg_prompts, **kwargs)
                     conn.send(("result", responses))
                 except Exception:
                     conn.send(("error", traceback.format_exc()))
 
     @abstractmethod
-    def _handle_model_call(self, model: Any, prompts: list[str]) -> list[str]:
+    def _handle_model_call(self, model: Any, prompts: list[str], **kwargs) -> list[str]:
         pass
 
     def unload(self):
@@ -94,7 +96,7 @@ class LargeLanguageModel(ABC):
         self.__conn = None
         self.__process = None
 
-    def call(self, prompts: list[str]) -> list[str]:
+    def call(self, prompts: list[str], **kwargs) -> list[str]:
         if self.__status != ModelStatus.READY:
             raise RuntimeError(f"Model not ready. Status: {self.__status}")
 
@@ -103,7 +105,7 @@ class LargeLanguageModel(ABC):
         if not self.__conn:
             raise RuntimeError(f"Unable to communicate with model process. __conn is None.")
 
-        self.__conn.send({"prompts": prompts})
+        self.__conn.send({"prompts": prompts, **kwargs})
 
         while True:
             if not self.__process or not self.__process.is_alive():
@@ -133,6 +135,7 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
     def _load_model(self) -> Llama:
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
+        # Set logits_all=True to ue logprobs
         return Llama(
             model_path=os.path.join(
                 base_dir, "models", "llama-3.1-8b-it-q4-k-m", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
@@ -140,7 +143,11 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
             n_gpu_layers=20, n_ctx=4096, use_mlock=True, use_mmap=True, verbose=True
         )
     
-    def _handle_model_call(self, model: Llama, prompts: list[str]) -> list[str]:
+    def _handle_model_call(self, model: Llama, prompts: list[str], reflection: bool=False) -> list[str]:
+
+        if reflection:
+            return self.__reflection_handle_model_call(model, prompts)
+
         results: list[str] = []
 
         for prompt in prompts:
@@ -150,6 +157,53 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
             ))
             text = response["choices"][0]["text"].strip()
             results.append(text)
+
+        return results
+
+    def __reflection_handle_model_call(self, model: Llama, prompts: list[str]) -> list[str]:
+        results: list[str] = []
+
+        for prompt in prompts:
+            # Step - 1: Generate Initial Response
+            print("[ Initiated Step - 1 ]")
+
+            # tokens = model.tokenize(prompt.encode('utf-8'), add_bos=True)
+            # prompt_len = len(tokens)
+
+            step1 = cast(dict, model(
+                prompt, max_tokens=256, echo=True, stream=False, temperature=0.7, top_k=50, top_p=0.9,
+                repeat_penalty=1.1, stop=["</s>", "[/INST]", "User:", "Query:"]
+            ))
+
+            # all_tokens = step1["tokens"]
+            # output_tokens = all_tokens[prompt_len:]
+            # logprobs = [t["logprob"] for t in output_tokens if "logprob" in t]
+            step1_text = step1["choices"][0]["text"].strip()
+            # confidence = sum(logprobs) / len(logprobs) if logprobs else -10.0
+
+            # print(f"[ INITIAL CONFIDENCE: {confidence:.3f} ]")
+
+            # Step - 2: Based on Initial Response, generate Final Response
+            print("[ Initiated Step - 2 ]")
+
+            reflection_prompt = f"""
+            <s>[INST]
+            You are a helpful assistant. Reflect on the previous response and improve it based on clarity, completeness and reasoning.
+            User Query: {prompt.strip()}
+            Initial Response: 
+            {step1_text}
+
+            Refined Answer:
+            [/INST]
+            """.strip()
+
+            step2 = cast(dict, model(
+                reflection_prompt, max_tokens=256, echo=False, stream=False, temperature=0.7, top_k=50, top_p=0.9,
+                repeat_penalty=1.1, stop=["</s>", "[/INST]", "User:", "Query:"]
+            ))
+
+            final_output = step2["choices"][0]["text"].strip()
+            results.append(final_output)
 
         return results
 
