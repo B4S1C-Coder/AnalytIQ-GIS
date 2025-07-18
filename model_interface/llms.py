@@ -33,7 +33,7 @@ class LargeLanguageModel(ABC):
     def load(self, timeout=30) -> ModelStatus:
         if self.__status in (ModelStatus.LOAD, ModelStatus.READY):
             return self.__status
-        
+
         parent_conn, child_conn = Pipe()
         self.__conn = parent_conn
 
@@ -66,15 +66,25 @@ class LargeLanguageModel(ABC):
 
         while True:
             msg = conn.recv()
-            
+
             if msg == "terminate":
                 break
+
             elif isinstance(msg, dict) and "prompts" in msg:
                 try:
                     msg_prompts = msg["prompts"]
-                    kwargs = { k:v for k,v in msg.items() if k != "prompts" }
-                    responses = self._handle_model_call(model, msg_prompts, **kwargs)
-                    conn.send(("result", responses))
+                    is_stream = msg.get("stream", False)
+                    kwargs = { k:v for k,v in msg.items() if k not in ("prompts", "stream") }
+
+                    if is_stream:
+                        for token in self._handle_model_stream(model, msg_prompts, **kwargs):
+                            conn.send(("token", token))
+                        conn.send(("done", None))
+
+                    else:
+                        responses = self._handle_model_call(model, msg_prompts, **kwargs)
+                        conn.send(("result", responses))
+
                 except Exception:
                     conn.send(("error", traceback.format_exc()))
 
@@ -88,7 +98,7 @@ class LargeLanguageModel(ABC):
                 self.__conn.send("terminate")
             except Exception:
                 pass
-        
+
         if self.__process:
             self.__process.join(timeout=5)
 
@@ -115,16 +125,48 @@ class LargeLanguageModel(ABC):
 
             if self.__conn.poll(timeout=30):
                 msg = self.__conn.recv()
-                
+
                 if msg[0] == "result":
                     # For now, NOT USING eject
                     self.__status = ModelStatus.READY
                     return msg[1]
-                
+
                 elif msg[0] == "error":
                     self.__status = ModelStatus.ERROR
                     self.__error = msg[1]
                     raise RuntimeError("Model error: " + msg[1])
+    
+    def call_stream(self, prompts: list[str], **kwargs):
+        """ Calls the model in streaming mode. Requires derived class to implement _handle_model_stream(). """
+        if self.__status != ModelStatus.READY:
+            raise RuntimeError(f"Model not ready. Status: {self.__status}")
+
+        if not self.__conn:
+            raise RuntimeError("Unable to communicate with model process. __conn is None.")
+
+        self.__conn.send({"prompts": prompts, **kwargs, "stream": True})
+
+        while True:
+            if not self.__process or not self.__process.is_alive():
+                self.__status = ModelStatus.ERROR
+                self.__error = "Model process died unexpectedly."
+                raise RuntimeError("Model process crashed unexpectedly")
+
+            if self.__conn.poll(timeout=30):
+                msg = self.__conn.recv()
+
+                if msg[0] == "token":
+                    yield msg[1]
+                elif msg[0] == "done":
+                    break
+                elif msg[0] == "error":
+                    self.__status = ModelStatus.ERROR
+                    self.__error = msg[1]
+                    raise RuntimeError("Model error: " + msg[1])
+
+    @abstractmethod
+    def _handle_model_stream(self, model: Any, prompts: list[str], **kwargs) -> Any:
+        pass
 
     @abstractmethod
     def _load_model(self) -> Any:
@@ -135,14 +177,13 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
     def _load_model(self) -> Llama:
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
-        # Set logits_all=True to ue logprobs
         return Llama(
             model_path=os.path.join(
                 base_dir, "models", "llama-3.1-8b-it-q4-k-m", "Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"
             ),
             n_gpu_layers=20, n_ctx=4096, use_mlock=True, use_mmap=True, verbose=True
         )
-    
+
     def _handle_model_call(self, model: Llama, prompts: list[str], reflection: bool=False) -> list[str]:
 
         if reflection:
@@ -160,6 +201,22 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
 
         return results
 
+    def _handle_model_stream(self, model: Llama, prompts: list[str], **kwargs):
+
+        if kwargs.get("reflection", False):
+            return self.__reflection_handle_model_stream(model, prompts, **kwargs)
+
+        for prompt in prompts:
+            stream = model(
+                prompt, max_tokens=kwargs.get("max_tokens", 256), echo=False, stream=True,
+                temperature=0.7, top_k=50, top_p=0.9, repeat_penalty=1.1,
+                stop=["</s>", "[/INST]", "User:", "Query:"]
+            )
+
+            for chunk in stream:
+                if "choices" in chunk and "text" in chunk["choices"][0]:
+                    yield chunk["choices"][0]["text"]
+
     def __reflection_handle_model_call(self, model: Llama, prompts: list[str]) -> list[str]:
         results: list[str] = []
 
@@ -167,21 +224,12 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
             # Step - 1: Generate Initial Response
             print("[ Initiated Step - 1 ]")
 
-            # tokens = model.tokenize(prompt.encode('utf-8'), add_bos=True)
-            # prompt_len = len(tokens)
-
             step1 = cast(dict, model(
                 prompt, max_tokens=256, echo=True, stream=False, temperature=0.7, top_k=50, top_p=0.9,
                 repeat_penalty=1.1, stop=["</s>", "[/INST]", "User:", "Query:"]
             ))
-
-            # all_tokens = step1["tokens"]
-            # output_tokens = all_tokens[prompt_len:]
-            # logprobs = [t["logprob"] for t in output_tokens if "logprob" in t]
             step1_text = step1["choices"][0]["text"].strip()
-            # confidence = sum(logprobs) / len(logprobs) if logprobs else -10.0
 
-            # print(f"[ INITIAL CONFIDENCE: {confidence:.3f} ]")
 
             # Step - 2: Based on Initial Response, generate Final Response
             print("[ Initiated Step - 2 ]")
@@ -206,6 +254,41 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
             results.append(final_output)
 
         return results
+
+    def __reflection_handle_model_stream(self, model: Llama, prompts: list[str], **kwargs):
+        for prompt in prompts:
+            print("[ SR Initiated Step - 1 ]")
+
+            step1 = cast(dict, model(
+                prompt, max_tokens=256, echo=True, stream=False, temperature=0.7, top_k=50, top_p=0.9,
+                repeat_penalty=1.1, stop=["</s>", "[/INST]", "User:", "Query:"]
+            ))
+            step1_text = step1["choices"][0]["text"].strip()
+
+            print("[ SR Initiated Step - 2 ]")
+
+            reflection_prompt = f"""
+            <s>[INST]
+            You are a helpful assistant. Reflect on the previous response and improve it based on clarity, completeness and reasoning.
+            User Query: {prompt.strip()}
+            Initial Response: 
+            {step1_text}
+
+            Refined Answer:
+            [/INST]
+            """.strip()
+
+            stream = model(
+                reflection_prompt, max_tokens=kwargs.get("max_tokens", 256), echo=False, stream=True,
+                temperature=0.7, top_k=50, top_p=0.9, repeat_penalty=1.1,
+                stop=["</s>", "[/INST]", "User:", "Query:"]
+            )
+
+            for chunk in stream:
+                if "choices" in chunk and "text" in chunk["choices"][0]:
+                    yield chunk["choices"][0]["text"]
+
+
 
 # This is a work in progress, and would be worked upon if the need for external APIs becomes necessary
 class LargeLanguageModelAPI(LargeLanguageModel, ABC):

@@ -56,8 +56,16 @@ async def transcribe(audio: UploadFile = File(...)):
 
     prompt = prompt_maker.get_cot_conv_prompt(transcript, False)
 
-    response = llm.call([prompt], reflection=True)[0]
-    response = prompt_maker.filter_llama_tokens(response)
+    # response = llm.call([prompt], reflection=True)[0]
+    # response = prompt_maker.filter_llama_tokens(response)
+    
+    response_tokens: list[str] = []
+    
+    for token in llm.call_stream([prompt]):
+        response_tokens.append(str(token))
+        print(token, end="", flush=True)
+
+    response = "".join(response_tokens)
 
     # Generate TTS
     tts = Communicate(response, "en-US-AriaNeural")
