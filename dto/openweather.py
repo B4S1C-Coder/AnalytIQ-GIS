@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from dataclasses_json import dataclass_json, config
 
 @dataclass
 class Coords:
@@ -22,6 +23,7 @@ class Main:
     humidity: int
     sea_level: int | None
     grnd_level: int | None
+    temp_kf: float | None
 
 @dataclass
 class Wind:
@@ -54,3 +56,50 @@ class WeatherResponse:
     id: int
     name: str
     cod: int
+
+@dataclass
+class ForecastResponseSys:
+    pod: str
+
+@dataclass_json
+@dataclass
+class Rain:
+    h3: float | None = field(default=None, metadata=config(field_name="3h"))
+
+@dataclass_json
+@dataclass
+class Snow:
+    h3: float | None = field(default=None, metadata=config(field_name="3h"))
+
+@dataclass
+class City:
+    id: int
+    name: str
+    coord: Coords
+    country: str
+    population: int
+    timezone: int
+    sunrise: int
+    sunset: int
+
+@dataclass
+class ForecastResponseListElement:
+    dt: int
+    main: Main
+    weather: list[Weather]
+    clouds: Clouds
+    wind: Wind
+    visibility: int
+    pop: float
+    dt_txt: str
+    sys: ForecastResponseSys
+    rain: Rain | None
+    snow: Snow | None
+
+@dataclass
+class ForecastResponse:
+    cod: str
+    message: float
+    cnt: int
+    list: list[ForecastResponseListElement] # actual key is "list"
+    city: City
