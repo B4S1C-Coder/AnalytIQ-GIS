@@ -63,6 +63,7 @@ typing-extensions = "4.13.2"
 urllib3 = "2.5.0"
 uvicorn = "0.35.0"
 yarl = "1.20.1"
+dacite = "^1.9.2"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -447,6 +447,21 @@ pyyaml = ">=5.3,<7"
 setuptools = "*"
 
 [[package]]
+name = "dacite"
+version = "1.9.2"
+description = "Simple creation of data classes from dictionaries."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "dacite-1.9.2-py3-none-any.whl", hash = "sha256:053f7c3f5128ca2e9aceb66892b1a3c8936d02c686e707bee96e19deef4bc4a0"},
+    {file = "dacite-1.9.2.tar.gz", hash = "sha256:6ccc3b299727c7aa17582f0021f6ae14d5de47c7227932c47fec4cdfefd26f09"},
+]
+
+[package.extras]
+dev = ["black", "coveralls", "mypy", "pre-commit", "pylint", "pytest (>=5)", "pytest-benchmark", "pytest-cov"]
+
+[[package]]
 name = "diskcache"
 version = "5.6.3"
 description = "Disk Cache -- Disk and file backed persistent cache."
@@ -1885,4 +1900,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12"
-content-hash = "a5624460c72c6835dbd87cdd36e3fbcdb1d3e051f61a6a9e22879ceb53d2a395"
+content-hash = "6b5ba74a5f64386e3f4d06dd2c19b7a1e458e91981aaa0b5011fbc9114a98515"

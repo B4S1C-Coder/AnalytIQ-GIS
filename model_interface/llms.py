@@ -184,7 +184,9 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
             n_gpu_layers=20, n_ctx=4096, use_mlock=True, use_mmap=True, verbose=True
         )
 
-    def _handle_model_call(self, model: Llama, prompts: list[str], reflection: bool=False) -> list[str]:
+    def _handle_model_call(self, model: Llama, prompts: list[str], **kwargs) -> list[str]:
+
+        reflection = kwargs.get("reflection", False)
 
         if reflection:
             return self.__reflection_handle_model_call(model, prompts)
@@ -291,18 +293,18 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
 
 
 # This is a work in progress, and would be worked upon if the need for external APIs becomes necessary
-class LargeLanguageModelAPI(LargeLanguageModel, ABC):
-    """ This is a helper Base class to represent interactions with external LLM APIs as LargeLanguageModel instance. """
-    def __init__(self):
-        super().__init__()
-        pass
+# class LargeLanguageModelAPI(LargeLanguageModel, ABC):
+#     """ This is a helper Base class to represent interactions with external LLM APIs as LargeLanguageModel instance. """
+#     def __init__(self):
+#         super().__init__()
+#         pass
 
-    @abstractmethod
-    def call(self, prompts: list[str]) -> list[str]:
-        pass
+#     @abstractmethod
+#     def call(self, prompts: list[str]) -> list[str]:
+#         pass
 
-    def _load_model(self) -> Any:
-        return None
+#     def _load_model(self) -> Any:
+#         return None
 
-    def _handle_model_call(self, model: Any, prompts: list[str]) -> list[str]:
-        return [""]
+#     def _handle_model_call(self, model: Any, prompts: list[str]) -> list[str]:
+#         return [""]

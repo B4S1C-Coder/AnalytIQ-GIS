@@ -32,6 +32,8 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 whisper_test/generated_audio
+secrets.env
+.vscode
 
 # debug
 npm-debug.log*
