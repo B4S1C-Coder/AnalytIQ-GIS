@@ -60,6 +60,9 @@ class ToolIntegrator:
         Available tools:
         { self.__consolidated_docs_str }
         """
+    
+    def get_tool_prompt(self) -> str:
+        return self.__tool_available_prompt
         
     def extract_tool_calls(self, output: str) -> list[dict] | None:
         hit = re.search(r'TOOL_CALLS:\s*(\[.*?\])', output, re.DOTALL)
@@ -78,5 +81,4 @@ class ToolIntegrator:
             raise ValueError(f"Tool not found: { tool_name }")
         
         return func(**args)
-    
     

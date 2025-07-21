@@ -211,7 +211,7 @@ class Prompt:
         return self.__cached_conv_generation
 
     def get_cot_conv_prompt(
-        self, query: str, use_cached: bool=True, prompt_id: str="ConvModel.v1.GeneralChat"
+        self, query: str, use_cached: bool=True, prompt_id: str="ConvModel.v1.GeneralChat", tools: str=""
     ) -> str:
         """ Generates a Chain of Thought chat prompt to evaluate model response coherence. """
 
@@ -224,6 +224,7 @@ class Prompt:
         self.__cached_conv_generation = f"""
             <s>[INST]
             {PROMPT_ROOT_COLLECTIONS[prompt_id]}
+            {tools}
             User: {query}
             [/INST]
         """.strip()
@@ -237,5 +238,14 @@ class Prompt:
         response = response.replace("[INST]", "")
         response = response.replace("[/INST]", "")
         response = response.replace("<|endoftext|>", "")
+
+        return response.strip()
+    
+    def filter_markdown(self, response: str) -> str:
+        """ Removes certain markdown tokens """
+        response = response.replace("<b>", "")
+        response = response.replace("</b>", "")
+        response = response.replace("#", "")
+        response = response.replace("*", "")
 
         return response.strip()

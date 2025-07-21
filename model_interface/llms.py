@@ -6,6 +6,8 @@ import traceback
 from typing import Any, cast
 from llama_cpp import Llama
 import os
+from integrations.prefab import get_prefabricated_tool_integrator
+from integrations.tool_integrator import ToolIntegrator
 
 class ModelStatus(Enum):
     READY  = 1  # Model is ready for use
@@ -174,6 +176,13 @@ class LargeLanguageModel(ABC):
         pass
 
 class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
+    def __init__(self):
+        super().__init__()
+        self.__tool_integrator: ToolIntegrator = get_prefabricated_tool_integrator()
+
+    def get_tool_integrator(self) -> ToolIntegrator:
+        return self.__tool_integrator
+
     def _load_model(self) -> Llama:
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -205,8 +214,13 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
 
     def _handle_model_stream(self, model: Llama, prompts: list[str], **kwargs):
 
+        print("Inside handle_model_stream")
+
         if kwargs.get("reflection", False):
+            print("Going in the reflection variant")
             return self.__reflection_handle_model_stream(model, prompts, **kwargs)
+
+        print("Feeding batch to LLM ... ")
 
         for prompt in prompts:
             stream = model(
@@ -218,6 +232,8 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
             for chunk in stream:
                 if "choices" in chunk and "text" in chunk["choices"][0]:
                     yield chunk["choices"][0]["text"]
+
+        print("Leaving handle_model_stream")
 
     def __reflection_handle_model_call(self, model: Llama, prompts: list[str]) -> list[str]:
         results: list[str] = []
@@ -266,15 +282,31 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
                 repeat_penalty=1.1, stop=["</s>", "[/INST]", "User:", "Query:"]
             ))
             step1_text = step1["choices"][0]["text"].strip()
+            print(step1_text)
+            print("-----------------------")
+
+            tool_calls: list[dict] | None = self.__tool_integrator.extract_tool_calls(step1_text)
+            results_str = ""
+
+            if tool_calls:
+                for call in tool_calls:
+                    result = self.__tool_integrator.call_tool(call["tool"], call["args"])
+                    results_str += f"{str(result)}\n"
+                    print(f"{call['tool']} evaluated.")
 
             print("[ SR Initiated Step - 2 ]")
 
             reflection_prompt = f"""
             <s>[INST]
             You are a helpful assistant. Reflect on the previous response and improve it based on clarity, completeness and reasoning.
+            Provide the Refined Answer which is a summary which answers the User Query based on the Initial Response and Tool Call Results.
             User Query: {prompt.strip()}
+            
             Initial Response: 
             {step1_text}
+
+            Tool Call Results:
+            {results_str}
 
             Refined Answer:
             [/INST]
@@ -283,7 +315,7 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
             stream = model(
                 reflection_prompt, max_tokens=kwargs.get("max_tokens", 256), echo=False, stream=True,
                 temperature=0.7, top_k=50, top_p=0.9, repeat_penalty=1.1,
-                stop=["</s>", "[/INST]", "User:", "Query:"]
+                stop=["</s>", "[/INST]"]
             )
 
             for chunk in stream:
