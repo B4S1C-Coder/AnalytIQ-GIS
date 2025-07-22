@@ -11,13 +11,13 @@ The system mimics a GIS expert’s reasoning by breaking down queries into logic
 
 >**Note**: This project is currently under active development.
 
-![UI](./ui.png)
+![UI](./.docs/ui.png)
 
 ## General Workflow
-![Workflow](./LLM_based_GIS_Workflow.jpg)
+![Workflow](./.docs/LLM_based_GIS_Workflow.jpg)
 
 ### Architecture
-![Architecture](./Solution_arch.jpg)
+![Architecture](./.docs/Solution_arch.jpg)
 
 ## Features
 - Combines the power of GIS Workflows and the ease of use of NLP into a single platform, allowing everyone to use GIS Workflows
