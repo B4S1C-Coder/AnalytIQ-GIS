@@ -112,6 +112,7 @@ PROMPT_ROOT_COLLECTIONS: dict[str, str] = {
     - Use markdown-style formatting where needed (e.g., lists, code blocks, emphasis).
     - Always reply in English only. Do not answer in or translate to any other language.
     - Do not continue conversations on your own or generate fictional follow-up questions.
+    - Do not generate code unless explicitly asked, prefer using natural language for responses.
 
     Chain of Thought Instructions:
     1. Interpret the users intent carefully before responding.

@@ -8,6 +8,7 @@ from llama_cpp import Llama
 import os
 from integrations.prefab import get_prefabricated_tool_integrator
 from integrations.tool_integrator import ToolIntegrator
+from model_interface.utils import UtilInterface
 
 class ModelStatus(Enum):
     READY  = 1  # Model is ready for use
@@ -175,13 +176,16 @@ class LargeLanguageModel(ABC):
         """ Derived classes must implement the loading logic and return the loaded model """
         pass
 
-class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
+class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel, UtilInterface):
     def __init__(self):
         super().__init__()
         self.__tool_integrator: ToolIntegrator = get_prefabricated_tool_integrator()
 
     def get_tool_integrator(self) -> ToolIntegrator:
         return self.__tool_integrator
+
+    def count_tokens(self, model: Llama, prompt: str) -> int:
+        return len(model.tokenize(prompt.encode('utf-8')))
 
     def _load_model(self) -> Llama:
         base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -223,6 +227,10 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
         print("Feeding batch to LLM ... ")
 
         for prompt in prompts:
+            num_tokens_prompt = len(model.tokenize(prompt.encode('utf-8')))
+
+            print(f"[ INPUT-TOKENS ] Number of tokens in input = {num_tokens_prompt}")
+
             stream = model(
                 prompt, max_tokens=kwargs.get("max_tokens", 256), echo=False, stream=True,
                 temperature=0.7, top_k=50, top_p=0.9, repeat_penalty=1.1,
@@ -242,12 +250,14 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
             # Step - 1: Generate Initial Response
             print("[ Initiated Step - 1 ]")
 
+            num_tokens_prompt = len(model.tokenize(prompt.encode('utf-8')))
+            print(f"[ INPUT-TOKENS ] Number of tokens in input = {num_tokens_prompt}")
+
             step1 = cast(dict, model(
                 prompt, max_tokens=256, echo=True, stream=False, temperature=0.7, top_k=50, top_p=0.9,
                 repeat_penalty=1.1, stop=["</s>", "[/INST]", "User:", "Query:"]
             ))
             step1_text = step1["choices"][0]["text"].strip()
-
 
             # Step - 2: Based on Initial Response, generate Final Response
             print("[ Initiated Step - 2 ]")
@@ -274,8 +284,14 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
         return results
 
     def __reflection_handle_model_stream(self, model: Llama, prompts: list[str], **kwargs):
+        
+        print(f"Number of prompts recieved: {len(prompts)}")
+
         for prompt in prompts:
             print("[ SR Initiated Step - 1 ]")
+
+            num_tokens_prompt = len(model.tokenize(prompt.encode('utf-8')))            
+            print(f"[ INPUT-TOKENS ] Number of tokens = {num_tokens_prompt}")
 
             step1 = cast(dict, model(
                 prompt, max_tokens=256, echo=True, stream=False, temperature=0.7, top_k=50, top_p=0.9,
@@ -311,6 +327,9 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel):
             Refined Answer:
             [/INST]
             """.strip()
+
+            reflection_prompt_token_len = len(model.tokenize(reflection_prompt.encode('utf-8')))
+            print(f"[ REFLECTION-PROMPT-TOKENS ] Number of input tokens = {reflection_prompt_token_len}")
 
             stream = model(
                 reflection_prompt, max_tokens=kwargs.get("max_tokens", 256), echo=False, stream=True,

@@ -15,7 +15,7 @@ def cli_chat_driver(query: str):
         query=query, use_cached=False
     )
 
-    for token in LLM.call_stream([prompt], reflection=False):
+    for token in LLM.call_stream([prompt], reflection=True):
         print(token, end='', flush=True)
 
 def main():
