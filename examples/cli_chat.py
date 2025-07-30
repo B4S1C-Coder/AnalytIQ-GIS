@@ -12,7 +12,7 @@ if LLM.load() != llms.ModelStatus.READY:
 
 def cli_chat_driver(query: str):
     prompt = PROMPT_MAKER.get_cot_conv_prompt(
-        query=query, use_cached=False
+        query=query, use_cached=False, tools=TOOL_DOCS
     )
 
     for token in LLM.call_stream([prompt], reflection=True):

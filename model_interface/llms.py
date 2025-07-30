@@ -222,7 +222,68 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel, UtilInterface):
 
         if kwargs.get("reflection", False):
             print("Going in the reflection variant")
-            return self.__reflection_handle_model_stream(model, prompts, **kwargs)
+            # return self.__reflection_handle_model_stream(model, prompts, **kwargs)
+
+            ##############################
+            print(f"Number of prompts recieved: {len(prompts)}")
+
+            for prompt in prompts:
+                print("[ SR Initiated Step - 1 ]")
+
+                num_tokens_prompt = len(model.tokenize(prompt.encode('utf-8')))            
+                print(f"[ INPUT-TOKENS ] Number of tokens = {num_tokens_prompt}")
+
+                step1 = cast(dict, model(
+                    prompt, max_tokens=256, echo=True, stream=False, temperature=0.7, top_k=50, top_p=0.9,
+                    repeat_penalty=1.1, stop=["</s>", "[/INST]", "User:", "Query:"]
+                ))
+                step1_text = step1["choices"][0]["text"].strip()
+                print(step1_text)
+                print("-----------------------")
+
+                tool_calls: list[dict] | None = self.__tool_integrator.extract_tool_calls(step1_text)
+                results_str = ""
+
+                if tool_calls:
+                    for call in tool_calls:
+                        result = self.__tool_integrator.call_tool(call["tool"], call["args"])
+                        results_str += f"{str(result)}\n"
+                        print(f"{call['tool']} evaluated.")
+
+                print("[ SR Initiated Step - 2 ]")
+
+                reflection_prompt = f"""
+                <s>[INST]
+                You are a helpful assistant. Reflect on the previous response and improve it based on clarity, completeness and reasoning.
+                Provide the Refined Answer which is a summary which answers the User Query based on the Initial Response and Tool Call Results.
+                User Query: {prompt.strip()}
+                
+                Initial Response: 
+                {step1_text}
+
+                Tool Call Results:
+                {results_str}
+
+                Refined Answer:
+                [/INST]
+                """.strip()
+
+                reflection_prompt_token_len = len(model.tokenize(reflection_prompt.encode('utf-8')))
+                print(f"[ REFLECTION-PROMPT-TOKENS ] Number of input tokens = {reflection_prompt_token_len}")
+
+                stream = model(
+                    reflection_prompt, max_tokens=kwargs.get("max_tokens", 256), echo=False, stream=True,
+                    temperature=0.7, top_k=50, top_p=0.9, repeat_penalty=1.1,
+                    stop=["</s>", "[/INST]"]
+                )
+
+                for chunk in stream:
+                    if "choices" in chunk and "text" in chunk["choices"][0]:
+                        yield chunk["choices"][0]["text"]
+
+                return None
+
+            ##############################
 
         print("Feeding batch to LLM ... ")
 
