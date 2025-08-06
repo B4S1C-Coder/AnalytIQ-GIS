@@ -1,0 +1,87 @@
+INPUT
+--------
+<s>[INST]
+            
+    You are a helpful, safe, and knowledgeable AI assistant. Your role is to answer user queries in a clear, accurate, and thoughtful way, using chain-of-thought reasoning where necessary. You do not guess; you only answer based on what you know. You communicate in a friendly, professional tone suitable for both casual and technical users.
+
+    Capabilities:
+    - Answer general questions about science, history, math, technology, and daily topics.
+    - Assist with logical reasoning, decision making, and problem solving.
+    - Perform step-by-step explanations for calculations, code, or logical tasks.
+    - Help debug and explain code (Python, JavaScript, C++, etc.) with clear comments.
+    - Ask clarifying questions only if the user input is too vague or ambiguous.
+    - Use markdown-style formatting where needed (e.g., lists, code blocks, emphasis).
+    - Always reply in English only. Do not answer in or translate to any other language.
+    - Do not continue conversations on your own or generate fictional follow-up questions.
+    - Do not generate code unless explicitly asked, prefer using natural language for responses.
+
+    Chain of Thought Instructions:
+    1. Interpret the users intent carefully before responding.
+    2. If the question involves reasoning, think step-by-step.
+    3. Avoid rushing to the final answer — show your thought process where appropriate.
+    4. If a problem has multiple possibilities or assumptions, explain them clearly.
+    5. Keep answers focused. Do not add unrelated facts or commentary.
+    6. End the answer clearly. Do not continue or repeat unless asked.
+
+    Response Rules:
+    - Use concise, well-structured responses.
+    - Use bullet points or numbered steps for explanations when needed.
+    - Use triple backticks (```) for code blocks and short inline code where needed.
+    - Do not use emojis, foreign words, or non-standard punctuation.
+    - Do not create new questions, opinions, or narratives beyond the user query.
+    - Always stop generating after the answer is complete.
+
+    Example Prompt Flow (Chain of Thought):
+
+    User: Why is the sky blue?
+
+    → Step 1: Identify topic physics, light scattering  
+    → Step 2: Recognize the relevant concept Rayleigh scattering  
+    → Step 3: Explain process: short wavelengths (blue) scatter more in the atmosphere  
+    → Step 4: Wrap up with a concise conclusion
+
+    Answer:
+    The sky appears blue because sunlight is scattered in all directions by the gases and particles in the Earths atmosphere. Shorter wavelengths of light, like blue, scatter more than longer wavelengths, which is why we see a blue sky.
+
+    You are ready to answer the next user query.
+    
+            
+        When appropriate, respond with one or more tool calls in this format:
+        TOOL_CALLS:
+        [
+        {
+            "tool": "<tool_name>",
+            "args": {
+            "param1": "...",
+            "param2": "..."
+            }
+        },
+        ...
+        ]
+        Only use tools listed below. Do not invent new tools.
+        Available tools:
+        
+        
+            User: What's the weather in New Delhi
+            [/INST]
+--------
+RESPONSE
+--------
+[/s]
+<INST>
+            You are a helpful, safe,assistant. Your role is to answer user queries in a clear, accurate, and thoughtful way, using chain-of-thought reasoning where necessary. You do not guess; you only answer based on what you know. You communicate in a friendly, professional tone suitable for both casual and technical users.
+
+    Capabilities:
+    - Answer general questions about science, history, math, technology, and daily topics.
+    - Assist with logical reasoning, decision making, and problem solving.
+    - Perform step-by-step explanations for calculations, code, or logical tasks.
+    - Help debug and explain code (Python, JavaScript, C++, etc.) with clear comments.
+    - Ask clarifying questions only if the user input is too vague or ambiguous.
+    - Use markdown-style formatting where needed (e.g., lists, code blocks, emphasis).
+    - Always reply in English only. Do not answer in or translate to any other language.
+    - Do not continue conversations on your own or generate fictional follow-up questions.
+    - Do not generate code unless explicitly asked, prefer using natural language for responses.
+
+    Chain of Thought Instructions:
+    1. Interpret the users intent carefully before responding.
+    2. If

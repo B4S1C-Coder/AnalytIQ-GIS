@@ -405,18 +405,18 @@ class Llama_3p1_8B_Instruct_4BitQuantized(LargeLanguageModel, UtilInterface):
 
 
 # This is a work in progress, and would be worked upon if the need for external APIs becomes necessary
-# class LargeLanguageModelAPI(LargeLanguageModel, ABC):
-#     """ This is a helper Base class to represent interactions with external LLM APIs as LargeLanguageModel instance. """
-#     def __init__(self):
-#         super().__init__()
-#         pass
+class LargeLanguageModelAPI(LargeLanguageModel, ABC):
+    """ This is a helper Base class to represent interactions with external LLM APIs as LargeLanguageModel instance. """
+    def __init__(self):
+        super().__init__()
+        pass
 
-#     @abstractmethod
-#     def call(self, prompts: list[str]) -> list[str]:
-#         pass
+    @abstractmethod
+    def call(self, prompts: list[str], **kwargs) -> list[str]:
+        pass
 
-#     def _load_model(self) -> Any:
-#         return None
+    def _load_model(self) -> Any:
+        return None
 
-#     def _handle_model_call(self, model: Any, prompts: list[str]) -> list[str]:
-#         return [""]
+    def _handle_model_call(self, model: Any, prompts: list[str], **kwargs) -> list[str]:
+        return [""]

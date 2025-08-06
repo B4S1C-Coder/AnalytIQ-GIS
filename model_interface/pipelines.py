@@ -1,3 +1,5 @@
+import os
+import time
 from model_interface.llms import (
     Llama_3p1_8B_Instruct_4BitQuantized, ModelStatus, LargeLanguageModel
 )
@@ -40,6 +42,12 @@ class BasicReflexivePipeline:
         # Step - 1 : Initial Responses
         step1_responses: list[str] = self.__model.call(final_prompts)
 
+        if debug:
+            if self.__dump_io(final_prompts, step1_responses):
+                print("Step 1 Responses written")
+            else:
+                print("Unable to write Step 1 Responses")
+
         # Step - 2 : Reflect on the Responses
         REFLECTION_PROMPT_ROOT = "Based on the original query and the original response, refine the response so that it answers the user query accurately. Original Query: "
 
@@ -51,6 +59,24 @@ class BasicReflexivePipeline:
 
         for token in self.__model.call_stream(step2_prompts):
             self.__callback(token)
+
+    def __dump_io(self, input_prompts: list[str], output_responses: list[str]) -> bool:
+        if len(input_prompts) != len(output_responses):
+            return False
+
+        try:
+            with open(os.path.join(".logs", f"{int(time.time())}.log"), "w") as f:
+                for i in range(len(input_prompts)):
+                    f.write(
+                        f"INPUT\n--------\n{input_prompts[i]}\n--------\n"
+                        f"RESPONSE\n--------\n{output_responses[i]}"
+                    )
+            return True
+
+        except Exception as err:
+            print(f"Error while writing log file: {err}")
+            return False
+
 
     def __del__(self):
         self.__model.unload()
